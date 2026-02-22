@@ -30,26 +30,25 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) throw insertError;
+    console.log("✅ Email saved. ID:", ticket.id);
 
-    // 2. ASK THE AI BRAIN
+    console.log("Calling OpenAI...");
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content: "You are an expert Shopify support assistant. Categorize the email and draft a helpful, professional reply. Return your answer as JSON with keys: 'category' and 'draft'."
+        { 
+          role: "system", 
+          content: "You are an expert Shopify support assistant. Analyze the email and return a JSON object with 'category' (one word) and 'draft' (the reply)." 
         },
-        {
-          role: "user",
-          content: `Subject: ${subject}\n\nMessage: ${body}`
-        }
+        { role: "user", content: body }
       ],
       response_format: { type: "json_object" }
     });
 
     const aiResult = JSON.parse(aiResponse.choices[0].message.content || "{}");
+    console.log("AI Generated Draft:", aiResult.category);
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('tickets')
       .update({
         ai_category: aiResult.category,
@@ -58,7 +57,8 @@ export async function POST(request: Request) {
       })
       .eq('id', ticket.id);
 
-    console.log(`AI triaged ticket from: ${sender}`);
+    if (updateError) throw updateError;
+
     return NextResponse.json({ success: true }, { status: 200 });
 
   } catch (error) {
