@@ -1,23 +1,38 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export async function POST(request: Request){
-    try {
-        const formData = await request.formData();
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-        const sender = formData.get('from') as string;
-        const receiver = formData.get('to') as string;
-        const subject = formData.get('subject') as string;
-        const body = formData.get('text') as string;
+export async function POST(request: Request) {
+  try {
+    const formData = await request.formData();
 
-        console.log("New Email Received");
-        console.log("From:", sender);
-        console.log("Subject:", subject);
-        console.log("Message:", body);
+    const sender = formData.get('from') as string;
+    const subject = formData.get('subject') as string;
+    const body = formData.get('text') as string;
 
-        return NextResponse.json({ success: true }, { status: 200 });
-    }
-    catch (error) {
-    console.error("Error processing webhook:", error);
+    const { data, error } = await supabase
+      .from('tickets')
+      .insert([
+        { 
+          customer_email: sender, 
+          subject: subject, 
+          message_body: body,
+          status: 'pending' 
+        },
+      ]);
+
+    if (error) throw error;
+
+    console.log("Ticket saved to Supabase for:", sender);
+
+    return NextResponse.json({ success: true }, { status: 200 });
+
+  } catch (error) {
+    console.error("Error saving to database:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-    }
+  }
 }
