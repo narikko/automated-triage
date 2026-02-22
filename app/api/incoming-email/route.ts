@@ -30,23 +30,23 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) throw insertError;
-    console.log("✅ Email saved. ID:", ticket.id);
+    console.log("Email saved. ID:", ticket.id);
 
-    console.log("Calling OpenAI...");
+    console.log("Calling OpenAI to triage...");
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { 
           role: "system", 
-          content: "You are an expert Shopify support assistant. Analyze the email and return a JSON object with 'category' (one word) and 'draft' (the reply)." 
+          content: "You are an expert Shopify support assistant. Return a JSON object with 'category' (e.g., Refund, Shipping, Tech) and 'draft' (a professional reply)." 
         },
-        { role: "user", content: body }
+        { role: "user", content: `Subject: ${subject}\n\nMessage: ${body}` }
       ],
       response_format: { type: "json_object" }
     });
 
     const aiResult = JSON.parse(aiResponse.choices[0].message.content || "{}");
-    console.log("AI Generated Draft:", aiResult.category);
+    console.log("AI categorized as:", aiResult.category);
 
     const { error: updateError } = await supabase
       .from('tickets')
@@ -59,10 +59,11 @@ export async function POST(request: Request) {
 
     if (updateError) throw updateError;
 
+    console.log("AI triaged ticket from:", sender);
     return NextResponse.json({ success: true }, { status: 200 });
 
-  } catch (error) {
-    console.error("Pipeline Error:", error);
+  } catch (error: any) {
+    console.error("Pipeline Error:", error.message || error);
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
