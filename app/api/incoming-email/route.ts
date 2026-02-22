@@ -15,15 +15,15 @@ export async function POST(request: Request) {
     const body = formData.get('text') as string;
 
     const { data, error } = await supabase
-      .from('tickets')
-      .insert([
+    .from('tickets')
+    .insert([
         { 
-          customer_email: sender, 
-          subject: subject, 
-          message_body: body,
-          status: 'pending' 
+        customer_email: sender, 
+        subject: subject, 
+        original_message: body, 
+        status: 'pending' 
         },
-      ]);
+    ]);
 
     if (error) throw error;
 
