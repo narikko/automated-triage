@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '../../utils/supabase/server'
+import Link from 'next/link'
+import { Mail, Lock, Sparkles, ArrowRight } from 'lucide-react'
 
 export default async function LoginPage(props: { searchParams: Promise<{ error?: string }> }) {
-  // Await the URL parameters to catch specific errors
   const searchParams = await props.searchParams;
   const errorMessage = searchParams?.error;
   
@@ -18,7 +19,6 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
     })
 
     if (error) {
-      // Pass the EXACT error message to the URL
       return redirect(`/login?error=${error.message}`)
     }
     
@@ -26,49 +26,71 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">Log in to ShopSift</h1>
+    <div className="min-h-screen bg-[#fafafa] flex flex-col justify-center items-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         
-        {/* NEW: Dynamic Error Banner */}
-        {errorMessage && errorMessage !== 'true' && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r-md">
-            <strong>Login Failed:</strong> {errorMessage}
+        {/* Header */}
+        <div className="bg-gray-50 border-b border-gray-100 p-6 flex flex-col items-center justify-center gap-2">
+          <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mb-2">
+            <Sparkles className="w-6 h-6" />
           </div>
-        )}
-        {errorMessage === 'true' && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r-md">
-            <strong>Login Failed:</strong> Invalid email or password.
-          </div>
-        )}
+          <h1 className="text-xl font-bold text-gray-900">Welcome Back</h1>
+          <p className="text-sm text-gray-500">Sign in to your triage desk.</p>
+        </div>
         
-        <form action={signIn} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input 
-              type="email" 
-              name="email" 
-              required 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900 placeholder-gray-400 bg-white"
-              placeholder="owner@store.com"
-            />
-          </div>
+        <div className="p-8">
+          {/* Dynamic Error Banner */}
+          {errorMessage && errorMessage !== 'true' && (
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r-md">
+              <strong>Login Failed:</strong> {errorMessage}
+            </div>
+          )}
+          {errorMessage === 'true' && (
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r-md">
+              <strong>Login Failed:</strong> Invalid email or password.
+            </div>
+          )}
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input 
-              type="password" 
-              name="password" 
-              required 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900 placeholder-gray-400 bg-white"
-              placeholder="••••••••"
-            />
-          </div>
+          <form action={signIn} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                <Mail className="w-4 h-4 text-gray-400" /> Email
+              </label>
+              <input 
+                type="email" 
+                name="email" 
+                required 
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white transition-colors"
+                placeholder="owner@store.com"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-gray-400" /> Password
+              </label>
+              <input 
+                type="password" 
+                name="password" 
+                required 
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white transition-colors"
+                placeholder="••••••••"
+              />
+            </div>
 
-          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg mt-2 transition-colors">
-            Sign In
-          </button>
-        </form>
+            <button type="submit" className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl mt-4 transition-all shadow-md">
+              Sign In <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+
+          {/* Quick link to signup */}
+          <div className="mt-8 text-center text-sm text-gray-500">
+            Don't have an account?{' '}
+            <Link href="/signup" className="text-indigo-600 font-semibold hover:text-indigo-700 hover:underline transition-colors">
+              Create your workspace
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   )
