@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     }
 
     // 2. FIND THE MERCHANT (The Multi-Tenant Magic)
+    // Because you used '*', this automatically grabs the new 'response_language' column!
     const { data: merchant, error: merchantError } = await supabase
       .from('merchants')
       .select('*')
@@ -47,11 +48,14 @@ export async function POST(request: Request) {
 
     console.log(`Processing ticket for merchant: ${merchant.store_name}`);
 
+    // Set a fallback language just in case it's missing from the database
+    const targetLanguage = merchant.response_language || 'English';
+
     // 3. SAVE TICKET WITH MERCHANT ID
     const { data: ticket, error: insertError } = await supabase
       .from('tickets')
       .insert([{ 
-        merchant_id: merchant.id, // Linked to Sarah's Shoes!
+        merchant_id: merchant.id, 
         customer_email: sender, 
         subject: subject, 
         original_message: body,
@@ -62,7 +66,7 @@ export async function POST(request: Request) {
 
     if (insertError) throw insertError;
 
-    // 4. ASK AI WITH DYNAMIC CONTEXT
+    // 4. ASK AI WITH DYNAMIC CONTEXT & LANGUAGE OVERRIDE
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -76,7 +80,8 @@ export async function POST(request: Request) {
           RULES:
           1. Return JSON with 'category' (one word) and 'draft' (the email reply).
           2. NEVER use placeholders. Sign off as ${merchant.agent_name} from ${merchant.store_name}.
-          3. Be empathetic and professional.` 
+          3. Be empathetic and professional.
+          4. CRITICAL: You MUST write your final email 'draft' entirely in ${targetLanguage}. Do not use any other language.` 
         },
         { 
           role: "user", 
