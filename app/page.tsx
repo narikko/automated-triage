@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { ArrowRight, Sparkles, Inbox, Zap, ShieldCheck, Check } from 'lucide-react';
+import { createClient } from '../utils/supabase/server'; // Adjust this path if your utils folder is elsewhere!
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Check if the user is already logged in
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <div className="min-h-screen bg-[#fafafa] font-sans text-gray-900 selection:bg-indigo-100 selection:text-indigo-900">
       
@@ -13,12 +18,21 @@ export default function LandingPage() {
             <span className="font-bold text-xl tracking-tight text-gray-900">ShopSift</span>
           </div>
           <div className="flex items-center gap-6">
-            <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-              Sign In
-            </Link>
-            <Link href="/signup" className="hidden sm:block text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-all shadow-sm">
-              Create Workspace
-            </Link>
+            {/* DYNAMIC NAVBAR: Show Dashboard if logged in, otherwise show Sign In/Up */}
+            {user ? (
+              <Link href="/dashboard" className="text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-all shadow-sm">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                  Sign In
+                </Link>
+                <Link href="/signup" className="hidden sm:block text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-all shadow-sm">
+                  Create Workspace
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -40,9 +54,18 @@ export default function LandingPage() {
             ShopSift reads your incoming support emails, categorizes the issue, and drafts the perfect reply based on your store's exact policies.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/signup" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-lg hover:shadow-indigo-200 text-lg">
-              Start Automating <ArrowRight className="w-5 h-5" />
-            </Link>
+            
+            {/* DYNAMIC HERO BUTTON: Change CTA based on auth state */}
+            {user ? (
+              <Link href="/dashboard" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-lg hover:shadow-indigo-200 text-lg">
+                Go to Dashboard <ArrowRight className="w-5 h-5" />
+              </Link>
+            ) : (
+              <Link href="/signup" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-lg hover:shadow-indigo-200 text-lg">
+                Start Automating <ArrowRight className="w-5 h-5" />
+              </Link>
+            )}
+
             <a href="#features" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 font-bold py-4 px-8 rounded-xl border border-gray-200 transition-all shadow-sm text-lg">
               See How it Works
             </a>
@@ -106,7 +129,7 @@ export default function LandingPage() {
                   <li className="flex items-center gap-3 text-sm text-gray-600"><Check className="w-4 h-4 text-green-500" /> Basic triage tagging</li>
                   <li className="flex items-center gap-3 text-sm text-gray-600"><Check className="w-4 h-4 text-green-500" /> 1 Support Agent</li>
                 </ul>
-                <Link href="/signup" className="w-full py-3 px-4 border border-gray-200 rounded-xl text-center font-bold text-gray-700 hover:bg-gray-50 transition-colors">
+                <Link href={user ? "/dashboard" : "/signup"} className="w-full py-3 px-4 border border-gray-200 rounded-xl text-center font-bold text-gray-700 hover:bg-gray-50 transition-colors">
                   Get Started
                 </Link>
               </div>
@@ -127,7 +150,7 @@ export default function LandingPage() {
                   <li className="flex items-center gap-3 text-sm text-gray-600"><Check className="w-4 h-4 text-indigo-500" /> Priority support</li>
                   <li className="flex items-center gap-3 text-sm text-gray-600"><Check className="w-4 h-4 text-indigo-500" /> Custom brand voice training</li>
                 </ul>
-                <Link href="/signup" className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl text-center font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
+                <Link href={user ? "/dashboard" : "/signup"} className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl text-center font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
                   Go Pro
                 </Link>
               </div>
@@ -146,7 +169,6 @@ export default function LandingPage() {
           </div>
           <div className="flex gap-6">
             <Link href="/legal" className="hover:text-gray-900 transition-colors">Privacy & Terms</Link>
-            {/* Updated from mailto to a proper internal link */}
             <Link href="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
           </div>
         </div>
