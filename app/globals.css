@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 1. Tell Tailwind to use the .dark class for all 'dark:' utility classes */
+@custom-variant dark (&:is(.dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -12,11 +15,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* 2. Change the media query to a .dark selector so your backgrounds update with the toggle */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 body {
