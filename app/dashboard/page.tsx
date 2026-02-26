@@ -1,7 +1,7 @@
 import { createClient } from '../../utils/supabase/server';
 import EditableDraft from './EditableDraft';
 import Link from 'next/link';
-import { Inbox, CheckCircle2, Sparkles, TrendingUp, User, Bot, Send } from 'lucide-react';
+import { Inbox, CheckCircle2, Sparkles, TrendingUp, User, Bot, Send, ChevronDown } from 'lucide-react';
 
 export const revalidate = 0; 
 
@@ -98,17 +98,22 @@ export default async function DashboardPage(props: { searchParams: Promise<{ tab
         
         {/* TICKET FEED - NOW A TIMELINE! */}
         <div className="space-y-8">
-          {displayTickets?.map((ticket) => {
+          {displayTickets?.map((ticket, index) => {
             // Sort messages chronologically (oldest at the top, newest at the bottom)
             const messages = ticket.ticket_messages?.sort((a: any, b: any) => 
               new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             ) || [];
 
             return (
-              <div key={ticket.id} className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors flex flex-col">
+              // 1. Change div to details. We use open={index === 0} so the first ticket is expanded by default!
+              <details 
+                key={ticket.id} 
+                className="group bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors flex flex-col"
+              >
                 
-                {/* Header Strip */}
-                <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/30">
+                {/* 2. Change the Header Strip to a <summary> tag so it acts as the click target */}
+                {/* We add list-none and webkit-details-marker:hidden to remove the ugly default browser arrow */}
+                <summary className="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/30 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
                   <div className="flex gap-4 items-center">
                     <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-sm shrink-0">
                       {ticket.customer_email.charAt(0).toUpperCase()}
@@ -118,12 +123,17 @@ export default async function DashboardPage(props: { searchParams: Promise<{ tab
                       <p className="text-sm text-gray-500 dark:text-gray-400">{ticket.customer_email}</p>
                     </div>
                   </div>
-                  <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700">
-                    {ticket.ai_category || 'Uncategorized'}
-                  </span>
-                </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700">
+                      {ticket.ai_category || 'Uncategorized'}
+                    </span>
+                    {/* 3. Add an animated Chevron that flips when the details tag is open */}
+                    <ChevronDown className="w-5 h-5 text-gray-400 group-open:-rotate-180 transition-transform duration-200" />
+                  </div>
+                </summary>
 
-                {/* The Chat Timeline Area */}
+                {/* The Chat Timeline Area (This only shows when the details tag is open) */}
                 <div className="p-6 space-y-6 max-h-[600px] overflow-y-auto bg-gray-50/30 dark:bg-gray-950/30">
                   {messages.map((msg: any) => {
                     const isCustomer = msg.sender_type === 'customer';
@@ -149,7 +159,6 @@ export default async function DashboardPage(props: { searchParams: Promise<{ tab
                           {/* Message Body OR Editable Component */}
                           {isDraft && ticket.status !== 'resolved' ? (
                             <div className="mt-2">
-                              {/* We pass the initial draft to your existing component */}
                               <EditableDraft ticketId={ticket.id} messageId={msg.id} initialDraft={msg.body} />
                             </div>
                           ) : (
@@ -168,7 +177,7 @@ export default async function DashboardPage(props: { searchParams: Promise<{ tab
                      </div>
                   )}
                 </div>
-              </div>
+              </details>
             );
           })}
 
