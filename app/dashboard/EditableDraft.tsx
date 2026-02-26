@@ -23,7 +23,7 @@ export default function EditableDraft({
 
   const handleSave = async () => {
     setIsSaving(true);
-    // 1. Update the specific message bubble in the new table
+    // Update the specific message bubble in the database
     await supabase
       .from('ticket_messages')
       .update({ body: draft })
@@ -36,26 +36,43 @@ export default function EditableDraft({
   const handleApproveAndSend = async () => {
     setIsSending(true);
     
-    // 1. Update the text AND change the sender_type so the UI bubble flips colors
-    await supabase
-      .from('ticket_messages')
-      .update({ 
-        body: draft,
-        sender_type: 'merchant' 
-      })
-      .eq('id', messageId);
+    try {
+      // 1. Update the database so the UI bubble flips to 'merchant' (Sent)
+      await supabase
+        .from('ticket_messages')
+        .update({ 
+          body: draft,
+          sender_type: 'merchant' 
+        })
+        .eq('id', messageId);
 
-    // 2. Mark the overarching ticket as resolved
-    await supabase
-      .from('tickets')
-      .update({ status: 'resolved' })
-      .eq('id', ticketId);
+      // 2. Mark the overarching ticket as resolved
+      await supabase
+        .from('tickets')
+        .update({ status: 'resolved' })
+        .eq('id', ticketId);
 
-    // 3. (KEEP YOUR EXISTING SENDGRID/EMAIL LOGIC HERE!)
-    // await fetch('/api/send-email', { ... })
+      // 3. YOUR ORIGINAL LOGIC: Actually send the email!
+      const response = await fetch('/api/send-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ticketId: ticketId,
+          customDraft: draft // The text we are sending to the customer
+        }),
+      });
 
-    setIsSending(false);
-    router.refresh(); // This forces the UI to move the ticket to the "Resolved" tab
+      if (response.ok) {
+        router.refresh(); // Moves ticket to "Resolved" tab
+      } else {
+        alert("Failed to send email. Check the console.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Something went wrong while sending the email.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
