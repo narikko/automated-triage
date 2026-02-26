@@ -19,7 +19,6 @@ export async function POST(request: Request) {
     const subject = formData.get('subject') as string;
     const body = formData.get('text') as string;
 
-    // 1. EXTRACT EMAILS CLEANLY
     const extractEmail = (str: string) => {
       const match = str.match(/<(.+)>/);
       return match ? match[1].trim() : str.trim();
@@ -33,8 +32,7 @@ export async function POST(request: Request) {
       customerName = nameMatch[1].trim();
     }
 
-    // 2. FIND THE MERCHANT (The Multi-Tenant Magic)
-    // Because you used '*', this automatically grabs the new 'response_language' column!
+    // 1. FIND MERCHANT & LANGUAGE
     const { data: merchant, error: merchantError } = await supabase
       .from('merchants')
       .select('*')
@@ -42,31 +40,67 @@ export async function POST(request: Request) {
       .single();
 
     if (merchantError || !merchant) {
-      console.error("Unrecognized routing address:", routingEmail);
       return NextResponse.json({ error: "Routing address not registered" }, { status: 404 });
     }
 
-    console.log(`Processing ticket for merchant: ${merchant.store_name}`);
-
-    // Set a fallback language just in case it's missing from the database
     const targetLanguage = merchant.response_language || 'English';
 
-    // 3. SAVE TICKET WITH MERCHANT ID
-    const { data: ticket, error: insertError } = await supabase
+    // 2. CHECK FOR EXISTING THREAD (The Magic Threading Logic)
+    let ticketId;
+    
+    // Look for the most recent ticket from this customer
+    const { data: existingTicket } = await supabase
       .from('tickets')
-      .insert([{ 
-        merchant_id: merchant.id, 
-        customer_email: sender, 
-        subject: subject, 
-        original_message: body,
-        status: 'pending' 
-      }])
-      .select()
+      .select('id, status')
+      .eq('merchant_id', merchant.id)
+      .eq('customer_email', customerEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (insertError) throw insertError;
+    if (existingTicket) {
+      ticketId = existingTicket.id;
+      // If the ticket was resolved, wake it back up!
+      if (existingTicket.status === 'resolved') {
+        await supabase.from('tickets').update({ status: 'pending' }).eq('id', ticketId);
+      }
+    } else {
+      // No existing ticket found, create a brand new one
+      const { data: newTicket, error: insertError } = await supabase
+        .from('tickets')
+        .insert([{ 
+          merchant_id: merchant.id, 
+          customer_email: customerEmail, 
+          subject: subject, 
+          status: 'pending' 
+        }])
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      ticketId = newTicket.id;
+    }
 
-    // 4. ASK AI WITH DYNAMIC CONTEXT & LANGUAGE OVERRIDE
+    // 3. SAVE THE NEW INCOMING MESSAGE
+    await supabase.from('ticket_messages').insert([{
+      ticket_id: ticketId,
+      sender_type: 'customer',
+      body: body
+    }]);
+
+    // 4. FETCH FULL CHAT HISTORY FOR THE AI
+    const { data: chatHistory } = await supabase
+      .from('ticket_messages')
+      .select('sender_type, body')
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: true });
+
+    // Format the history so the AI can read it like a script
+    const formattedHistory = chatHistory?.map(msg => {
+      const role = msg.sender_type === 'customer' ? 'Customer' : 'Agent';
+      return `${role}: ${msg.body}`;
+    }).join('\n\n') || `Customer: ${body}`;
+
+    // 5. ASK AI WITH FULL CONTEXT
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -79,13 +113,13 @@ export async function POST(request: Request) {
           
           RULES:
           1. Return JSON with 'category' (one word) and 'draft' (the email reply).
-          2. NEVER use placeholders. Sign off as ${merchant.agent_name} from ${merchant.store_name}.
-          3. Be empathetic and professional.
-          4. CRITICAL: You MUST write your final email 'draft' entirely in ${targetLanguage}. Do not use any other language.` 
+          2. NEVER use placeholders. Sign off as ${merchant.agent_name}.
+          3. Read the chat history carefully to understand the context of the conversation.
+          4. CRITICAL: You MUST write your final email 'draft' entirely in ${targetLanguage}.` 
         },
         { 
           role: "user", 
-          content: `Customer Name: ${customerName}\nSubject: ${subject}\n\nMessage: ${body}` 
+          content: `Customer Name: ${customerName}\nSubject: ${subject}\n\nChat History:\n${formattedHistory}\n\nPlease draft the next reply.` 
         }
       ],
       response_format: { type: "json_object" }
@@ -93,15 +127,18 @@ export async function POST(request: Request) {
 
     const aiResult = JSON.parse(aiResponse.choices[0].message.content || "{}");
 
-    // 5. UPDATE TICKET
-    await supabase
-      .from('tickets')
-      .update({
-        ai_category: aiResult.category,
-        ai_draft: aiResult.draft,
-        status: 'triaged'
-      })
-      .eq('id', ticket.id);
+    // 6. SAVE THE AI DRAFT AS A NEW MESSAGE IN THE TIMELINE
+    await supabase.from('ticket_messages').insert([{
+      ticket_id: ticketId,
+      sender_type: 'ai_draft',
+      body: aiResult.draft
+    }]);
+
+    // 7. UPDATE TICKET CATEGORY
+    await supabase.from('tickets').update({
+      ai_category: aiResult.category,
+      status: 'triaged'
+    }).eq('id', ticketId);
 
     return NextResponse.json({ success: true }, { status: 200 });
 
