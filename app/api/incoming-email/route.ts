@@ -45,37 +45,48 @@ export async function POST(request: Request) {
 
     const targetLanguage = merchant.response_language || 'English';
 
-    // 2. CHECK FOR EXISTING THREAD (The Magic Threading Logic)
+    // 2. CHECK FOR EXISTING THREAD (The Watermark Method)
     let ticketId;
     
-    // Look for the most recent ticket from this customer
-    const { data: existingTicket } = await supabase
-      .from('tickets')
-      .select('id, status')
-      .eq('merchant_id', merchant.id)
-      .eq('customer_email', customerEmail)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Look for our exact UUID watermark in the incoming email body
+    // UUIDs look like: 123e4567-e89b-12d3-a456-426614174000
+    const watermarkMatch = body.match(/Ref ID:\s*([a-f0-9\-]{36})/i);
+    
+    if (watermarkMatch && watermarkMatch[1]) {
+      const extractedId = watermarkMatch[1];
+      
+      // Verify this ticket actually exists and belongs to this merchant
+      const { data: existingTicket } = await supabase
+        .from('tickets')
+        .select('id, status')
+        .eq('merchant_id', merchant.id)
+        .eq('id', extractedId)
+        .single();
 
-    if (existingTicket) {
-      ticketId = existingTicket.id;
-      // If the ticket was resolved, wake it back up!
-      if (existingTicket.status === 'resolved') {
-        await supabase.from('tickets').update({ status: 'pending' }).eq('id', ticketId);
+      if (existingTicket) {
+        ticketId = existingTicket.id;
+        // Wake it up if it was resolved
+        if (existingTicket.status === 'resolved') {
+          await supabase.from('tickets').update({ status: 'pending' }).eq('id', ticketId);
+        }
       }
-    } else {
-      // No existing ticket found, create a brand new one
+    }
+
+    // If we didn't find a valid watermark, it MUST be a brand new ticket!
+    if (!ticketId) {
+      const finalSubject = subject && subject.trim() !== '' ? subject : 'No Subject';
+      
       const { data: newTicket, error: insertError } = await supabase
         .from('tickets')
         .insert([{ 
           merchant_id: merchant.id, 
           customer_email: customerEmail, 
-          subject: subject, 
+          subject: finalSubject, 
           status: 'pending' 
         }])
         .select()
         .single();
+        
       if (insertError) throw insertError;
       ticketId = newTicket.id;
     }

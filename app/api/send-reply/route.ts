@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       },
       replyTo: ticket.merchants.routing_email, // If they reply, it routes back to Jimmy!
       subject: `Re: ${ticket.subject}`,
-      text: customDraft, 
+      text: `${customDraft}\n\n---\nRef ID: ${ticketId}`, 
     };
 
     await sgMail.send(msg);
