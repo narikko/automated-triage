@@ -111,32 +111,43 @@ export async function POST(request: Request) {
       return `${role}: ${msg.body}`;
     }).join('\n\n') || `Customer: ${body}`;
 
-    // 5. ASK AI WITH FULL CONTEXT
-    const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { 
-          role: "system", 
-          content: `You are ${merchant.agent_name}, an expert customer support agent for ${merchant.store_name}.
-          
-          Use this knowledge base to answer the customer:
-          ${merchant.store_context}
-          
-          RULES:
-          1. Return JSON with 'category' (one word) and 'draft' (the email reply).
-          2. NEVER use placeholders. Sign off as ${merchant.agent_name}.
-          3. Read the chat history carefully to understand the context of the conversation.
-          4. CRITICAL: You MUST write your final email 'draft' entirely in ${targetLanguage}.` 
-        },
-        { 
-          role: "user", 
-          content: `Customer Name: ${customerName}\nSubject: ${subject}\n\nChat History:\n${formattedHistory}\n\nPlease draft the next reply.` 
-        }
-      ],
-      response_format: { type: "json_object" }
+    // 5. ASK THE PYTHON AGENT WITH FULL CONTEXT
+    // Note: We combine the system prompt and the user prompt into one big task for the smolagent.
+    const agentPrompt = `
+      You are ${merchant.agent_name}, an expert customer support agent for ${merchant.store_name}.
+      Your job is to read the customer's email and draft a reply. 
+      If they are asking about a product, USE YOUR SHOPIFY TOOL to check the store's data before replying!
+      
+      Customer Name: ${customerName}
+      Subject: ${subject}
+      Chat History:
+      ${formattedHistory}
+      
+      RULES:
+      1. Investigate the issue using your tools if needed.
+      2. Return JSON with 'category' (one word representing the ticket type) and 'draft' (the actual email reply to the customer).
+      3. CRITICAL: Your final answer MUST be valid JSON and nothing else.
+    `;
+
+    // Make a POST request to your friend's Python microservice
+    // (We use localhost for testing, but later this will be their deployed URL like Render/Railway)
+    const pythonAgentUrl = process.env.PYTHON_AGENT_URL || 'http://127.0.0.1:8000/ask-agent';
+    
+    const agentResponse = await fetch(pythonAgentUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: agentPrompt })
     });
 
-    const aiResult = JSON.parse(aiResponse.choices[0].message.content || "{}");
+    if (!agentResponse.ok) {
+      throw new Error("Python Agent failed to respond");
+    }
+
+    const agentData = await agentResponse.json();
+    
+    // The Python agent sends back {"reply": "{ \"category\": \"...\", \"draft\": \"...\" }"}
+    // We parse the inner reply string into actual JSON we can use in the database
+    const aiResult = JSON.parse(agentData.reply || "{}");
 
     // 6. SAVE THE AI DRAFT AS A NEW MESSAGE IN THE TIMELINE
     await supabase.from('ticket_messages').insert([{
